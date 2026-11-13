@@ -324,6 +324,15 @@ func rustEnvVars(ctx android.ModuleContext, deps PathDeps, crateName string, car
 		envVars["STD_ENV_ARCH"] = config.StdEnvArch[ctx.Arch().ArchType]
 	}
 
+	// The AOSP prebuilt rust (built by Google with Android patches, e.g.
+	// linux-musl-x86 in this tree) accepts the -Z flags that Soong passes for
+	// every rust build. The arm64-host toolchain (linux-musl-arm64 here) is a
+	// stock/upstream rustc which rejects -Z on the stable channel. RUSTC_BOOTSTRAP
+	// is the standard escape hatch that makes a stable rustc accept -Z flags;
+	// without it every host rust build on an arm64 host fails with
+	// "the option `Z` is only accepted on the nightly compiler".
+	envVars["RUSTC_BOOTSTRAP"] = "1"
+
 	if len(deps.SrcDeps) > 0 && cargoOutDir.Valid() {
 		moduleGenDir := cargoOutDir
 		envVars["SOONG_RUST_GEN_DIR"] = moduleGenDir.String()

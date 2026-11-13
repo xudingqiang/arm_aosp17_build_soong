@@ -122,7 +122,7 @@ func (binary *binaryDecorator) compilerDeps(ctx DepsContext, deps Deps) Deps {
 			deps.CrtBegin = []string{"crtbegin_dynamic"}
 		}
 		deps.CrtEnd = []string{"crtend_android"}
-	} else if ctx.Os() == android.LinuxMusl {
+	} else if ctx.Os() == android.LinuxMusl && ctx.toolchain().Musl() {
 		deps = muslDeps(ctx, deps, static)
 		if static {
 			deps.CrtBegin = []string{"libc_musl_crtbegin_static"}

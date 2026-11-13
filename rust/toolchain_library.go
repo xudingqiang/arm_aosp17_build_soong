@@ -153,6 +153,7 @@ type hostPrebuiltProps struct {
 		Linux_glibc_x86    hostPrebuiltTargetProps
 		Linux_musl_x86_64  hostPrebuiltTargetProps
 		Linux_musl_x86     hostPrebuiltTargetProps
+		Linux_musl_arm64   hostPrebuiltTargetProps
 		Darwin_x86_64      hostPrebuiltTargetProps
 	}
 }
@@ -179,6 +180,7 @@ func constructLibProps(rlib, solib bool) func(ctx android.LoadHookContext) {
 		} else if platform == "linux-musl-x86" && ctx.Config().BuildOS == android.LinuxMusl {
 			p.Target.Linux_musl_x86_64.addPrebuiltToTarget(ctx, name, rustDir, "linux-musl-x86", "x86_64-unknown-linux-musl", rlib, solib)
 			p.Target.Linux_musl_x86.addPrebuiltToTarget(ctx, name, rustDir, "linux-musl-x86", "i686-unknown-linux-musl", rlib, solib)
+			p.Target.Linux_musl_arm64.addPrebuiltToTarget(ctx, name, rustDir, "linux-musl-arm64", "aarch64-unknown-linux-gnu", rlib, solib)
 		} else if platform == "darwin" && ctx.Config().BuildOS == android.Darwin {
 			p.Target.Darwin_x86_64.addPrebuiltToTarget(ctx, name, rustDir, "darwin-x86", "x86_64-apple-darwin", rlib, solib)
 		} else {

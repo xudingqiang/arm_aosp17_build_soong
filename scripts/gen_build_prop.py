@@ -76,6 +76,17 @@ def parse_args():
     config['ProductManufacturer'] = config['SystemManufacturer']
     config['ProductModel'] = config['SystemModel']
     config['MockDeviceProduct'] = config['SystemName']
+  else:
+    # The MockDevice* placeholders (BuildFlavor and
+    # ro.product.<partition>.name/device, see get_build_flavor /
+    # generate_common_build_props) are never exported for the other
+    # partitions: soong's variable.go MockDevice* fields are nil and omitted
+    # from product_config.json, and build/make exports no source for them.
+    # Mirror the system values so every partition build.prop carries the same
+    # ro.product.* / ro.build.flavor as the system image (which for this
+    # branch is `openfde_fde_arm64-userdebug`). See BUILD_FIXES.md §18.
+    config['MockDeviceName'] = config['SystemDevice']
+    config['MockDeviceProduct'] = config['SystemName']
 
   config["BuildFlavor"] = get_build_flavor(config)
   config["BuildKeys"] = get_build_keys(config)

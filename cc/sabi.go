@@ -244,6 +244,26 @@ func shouldCreateSourceAbiDumpForLibrary(ctx shouldCreateAbiDumpContext) bool {
 	return len(classifySourceAbiDump(m)) > 0
 }
 
+// abiChecksSkipped reports whether all ABI checking should be disabled for the
+// current build.
+//
+// Besides the official escape hatch (SKIP_ABI_CHECKS), ABI checks are forced
+// off whenever the host is linux-arm64: the ABI tools shipped in
+// prebuilts/clang-tools (header-abi-dumper/header-abi-linker/header-abi-diff)
+// are only built for linux-x86, so on an arm64 host they cannot execute at all
+// and the ABI dumps/lsdumps/abidiff targets can never be produced.  This makes
+// arm64-host builds robust regardless of how they are launched (env vars are
+// lost when `make` is invoked directly instead of through a wrapper script).
+func abiChecksSkipped(config android.Config) bool {
+	if config.IsEnvTrue("SKIP_ABI_CHECKS") {
+		return true
+	}
+	if config.PrebuiltOS() == "linux-arm64" {
+		return true
+	}
+	return false
+}
+
 // Mark the direct and transitive dependencies of libraries that need ABI check, so that ABI dumps
 // of their dependencies would be generated.
 type sabiTransitionMutator struct{}
@@ -258,7 +278,7 @@ func (s *sabiTransitionMutator) SplitOnDemand(ctx android.BaseModuleContext) []s
 
 func (s *sabiTransitionMutator) OutgoingTransition(ctx android.OutgoingTransitionContext, sourceVariation string) string {
 	// Escape hatch to not check any ABI dump.
-	if ctx.Config().IsEnvTrue("SKIP_ABI_CHECKS") {
+	if abiChecksSkipped(ctx.Config()) {
 		return ""
 	}
 
@@ -300,7 +320,7 @@ func (s *sabiTransitionMutator) Mutate(ctx android.BottomUpMutatorContext, varia
 			m.Properties.PreventInstall = true
 		} else if shouldCreateSourceAbiDumpForLibrary(ctx) {
 			// Escape hatch to not check any ABI dump.
-			if !ctx.Config().IsEnvTrue("SKIP_ABI_CHECKS") {
+			if !abiChecksSkipped(ctx.Config()) {
 				m.sabi.Properties.ShouldCreateSourceAbiDump = true
 			}
 		}
@@ -442,7 +462,7 @@ func checkAbiDumpList(ctx android.SingletonContext, stubLibraries []string) {
 	ctx.Phony("check-abi-dump-list", checkAbiDumpListTimestamp)
 
 	// The ABI tool does not support sanitizer and coverage builds.
-	if !ctx.DeviceConfig().ClangCoverageEnabled() && !ctx.Config().IsEnvTrue("SKIP_ABI_CHECKS") && len(ctx.Config().SanitizeDevice()) == 0 {
+	if !ctx.DeviceConfig().ClangCoverageEnabled() && !abiChecksSkipped(ctx.Config()) && len(ctx.Config().SanitizeDevice()) == 0 {
 		ctx.Phony("droidcore", checkAbiDumpListTimestamp)
 	}
 }

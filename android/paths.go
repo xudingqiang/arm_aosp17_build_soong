@@ -2042,8 +2042,27 @@ func pathForInstall(ctx PathContext, os OsType, arch ArchType, partition string,
 		// Let's keep using x86 for the existing cases until we have a need to support
 		// other architectures.
 		archName := arch.String()
-		if os.Class == Host && (arch == X86_64 || arch == Common) {
-			archName = "x86"
+		if os.Class == Host {
+			switch arch {
+			case X86_64:
+				// On x86_64 hosts all host modules share the "x86"-suffixed
+				// directory; the native x86_64 host arch is folded to "x86".
+				// On arm64 hosts modules that are explicitly built for x86_64
+				// (e.g. x86-only prebuilt host tools) keep the "x86" directory.
+				archName = "x86"
+			case Common:
+				// Architecture-independent host modules (Java tools/jars,
+				// testcases, etc.) are installed next to the native host tools.
+				// On x86_64 hosts that is the "x86" directory; on arm64 hosts it
+				// must be the "arm64" directory so that host Java tools and the
+				// native host tools land in the same place, matching how the
+				// x86_64 host behaves.
+				if ctx.Config().BuildArch == Arm64 {
+					archName = "arm64"
+				} else {
+					archName = "x86"
+				}
+			}
 		}
 		partitionPaths = []string{"host", osName + "-" + archName, partition}
 	}

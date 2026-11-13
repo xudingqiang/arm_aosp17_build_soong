@@ -603,7 +603,7 @@ func (library *libraryDecorator) compilerDeps(ctx DepsContext, deps Deps) Deps {
 			deps = bionicDeps(ctx, deps, false)
 			deps.CrtBegin = []string{"crtbegin_so"}
 			deps.CrtEnd = []string{"crtend_so"}
-		} else if ctx.Os() == android.LinuxMusl {
+		} else if ctx.Os() == android.LinuxMusl && ctx.toolchain().Musl() {
 			deps = muslDeps(ctx, deps, false)
 			deps.CrtBegin = []string{"libc_musl_crtbegin_so"}
 			deps.CrtEnd = []string{"libc_musl_crtend_so"}

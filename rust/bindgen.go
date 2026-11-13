@@ -402,7 +402,21 @@ func (b *bindgenDecorator) SourceProviderDeps(ctx DepsContext, deps Deps) Deps {
 	if ctx.toolchain().Bionic() && !ctx.RustModule().compiler.noStdlibs() {
 		deps = bionicDeps(ctx, deps, false)
 	} else if ctx.Os() == android.LinuxMusl {
-		deps = muslDeps(ctx, deps, false)
+		if ctx.toolchain().Musl() {
+			deps = muslDeps(ctx, deps, false)
+		} else {
+			// aarch64 host: the rust toolchain was redirected to gnu glibc
+			// (config/toolchainLinuxMuslArm64.Musl() == false) because no musl
+			// rust stdlib ships for this target, so libc_musl must NOT be
+			// linked into the gnu (glibc) rust host binaries. However bindgen's
+			// clang still parses the wrapper/headers for "-target
+			// aarch64-linux-musl" (the cc toolchain is still the musl one), so
+			// it needs the musl libc headers (sys/cdefs.h, features.h, ...) to
+			// resolve. Supply them through a header-only dependency on
+			// libc_musl_headers (which re-exports the arch/public/uapi header
+			// sets plus the generated alltypes.h/syscall.h) instead.
+			deps.HeaderLibs = append(deps.HeaderLibs, "libc_musl_headers")
+		}
 	}
 
 	if !ctx.RustModule().Source() && b.Properties.Static_inline_library != nil {

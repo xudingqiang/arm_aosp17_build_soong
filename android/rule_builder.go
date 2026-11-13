@@ -1412,11 +1412,15 @@ func (c *RuleBuilderCommand) getHostToolRuntimeDeps(tool string) Paths {
 //
 //	cmd.Tool(ctx.Config().HostToolPath(ctx, tool))
 func (c *RuleBuilderCommand) BuiltTool(tool string) *RuleBuilderCommand {
-	if c.rule.ctx.Config().UseHostMusl() {
-		// If the host is using musl, assume that the tool was built against musl libc and include
+	if c.rule.ctx.Config().BuildOS == LinuxMusl {
+		// If the host build is using musl, assume that the tool was built against musl libc and include
 		// libc_musl.so in the sandbox.
 		// TODO(ccross): if we supported adding new dependencies during GenerateAndroidBuildActions
 		// this could be a dependency + TransitivePackagingSpecs.
+		// NB: check BuildOS (not UseHostMusl()) because on arm64 hosts the build
+		// is forced to musl regardless of the HostMusl product variable
+		// (build/soong/android/arch.go) -- without this the sandboxed musl
+		// host tools (aidl-cpp, etc.) cannot load libc_musl.so via relinterp.
 		c.ImplicitTool(c.rule.ctx.Config().HostJNIToolPath(c.rule.ctx, "libc_musl"))
 	}
 	return c.builtToolWithoutDeps(tool)
@@ -1452,6 +1456,25 @@ func (c *RuleBuilderCommand) builtToolWithoutDeps(tool string) *RuleBuilderComma
 //
 //	cmd.Tool(ctx.Config().PrebuiltBuildTool(ctx, tool))
 func (c *RuleBuilderCommand) PrebuiltBuildTool(ctx PathContext, tool string) *RuleBuilderCommand {
+	if c.rule.ctx.Config().BuildOS == LinuxMusl {
+		// The musl-linked prebuilt build-tools (bison, m4, ...) load libc_musl.so
+		// via relinterp relative to $ORIGIN. Include the sibling prebuilt
+		// libc_musl.so in the sandbox so relinterp can find its loader.
+		// Build-tool binaries referenced by a rule may be placed in the sandbox
+		// either as a tool (copied under tools/src/<path>, e.g. bison) or as an
+		// input/implicit (copied at the source-relative path, e.g. m4 via
+		// FlagWithInput), so publish libc_musl.so at both relative locations to
+		// cover whichever mechanism placed the binary.
+		// NB: check BuildOS (not UseHostMusl()) because on arm64 hosts the build
+		// is forced to musl regardless of the HostMusl product variable
+		// (build/soong/android/arch.go).
+		prebuiltOS := c.rule.ctx.Config().PrebuiltOS()
+		if prebuiltOS != "" {
+			lib := PathForSource(c.rule.ctx, "prebuilts/build-tools", prebuiltOS, "lib64", "libc_musl.so")
+			c.ImplicitTool(lib)
+			c.Implicit(lib)
+		}
+	}
 	return c.Tool(ctx.Config().PrebuiltBuildTool(ctx, tool))
 }
 

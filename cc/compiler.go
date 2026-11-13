@@ -562,6 +562,18 @@ func (compiler *baseCompiler) compilerFlags(ctx ModuleContext, flags Flags, deps
 	}
 
 	flags.Local.CFlags = config.ClangFilterUnknownCflags(flags.Local.CFlags)
+	if ctx.Arch().ArchType != android.X86 && ctx.Arch().ArchType != android.X86_64 {
+		// x86-only -m ISA flags (-msse3, -mavx2, -mfpmath=sse, ...) that some
+		// Android.bp files hardcode in module cflags (external/cronet,
+		// external/webrtc, ...) are rejected by clang on non-x86 targets
+		// ("unsupported option '-msse3' for target 'aarch64-...'"), e.g. on
+		// arm64 hosts. Strip them for non-x86 targets only.
+		flags.Local.CFlags = config.ClangFilterX86ISACFlags(flags.Local.CFlags)
+		flags.Local.CppFlags = config.ClangFilterX86ISACFlags(flags.Local.CppFlags)
+		flags.Local.ConlyFlags = config.ClangFilterX86ISACFlags(flags.Local.ConlyFlags)
+		flags.Local.AsFlags = config.ClangFilterX86ISACFlags(flags.Local.AsFlags)
+		flags.Local.LdFlags = config.ClangFilterX86ISACFlags(flags.Local.LdFlags)
+	}
 	if !ctx.DeviceConfig().BuildBrokenClangCFlags() {
 		flags.Local.CFlags = append(flags.Local.CFlags, esc(compiler.Properties.Clang_cflags)...)
 	}

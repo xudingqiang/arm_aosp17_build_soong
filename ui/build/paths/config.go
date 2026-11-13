@@ -109,6 +109,13 @@ var Configuration = map[string]PathConfig{
 	"unzip":       Allowed,
 	"zip":         Allowed,
 
+	// arm64 host workaround: external/mesa 的 meson 构建用 find_program 找
+	// glslangValidator（预编译 SPIR-V 用），AOSP 无 arm64/linux 预置它，本树
+	// 经 ~/.local/bin 提供宿主版（16.0.0）。必须放行，否则 PATH 拦截
+	// (out/.path/glslangValidator) 直接报 "not allowed"，meson 解析空版本串
+	// 崩溃（meson.build:709 Index 2 out of bounds）。
+	"glslangValidator": Allowed,
+
 	// Host toolchain is removed. In-tree toolchain should be used instead.
 	// GCC also can't find cc1 with this implementation.
 	"ar":         Forbidden,

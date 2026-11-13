@@ -74,18 +74,55 @@ type toolchainLinuxMuslArm64 struct {
 }
 
 func (t *toolchainLinuxMuslArm64) RustTriple() string {
-	return "aarch64-unknown-linux-musl"
+	// Host rust on arm64 uses glibc: switch from the (unavailable for this
+	// target) musl stdlib to a gnu stdlib so that rustc's host==target triple
+	// check passes for proc-macro crates.
+	return "aarch64-unknown-linux-gnu"
 }
 
+// Despite the "Musl" name this toolchain now targets the host glibc
+// (RustTriple is aarch64-unknown-linux-gnu), so report Musl()=false /
+// Glibc()=true. This makes rust/binary.go, rust/library.go and rust/bindgen.go
+// skip the musl crt / libc_musl / clang_rt injection for host bins and
+// dylibs (otherwise the rsp carries musl crt objects while the clang driver
+// also adds the host glibc crt, producing duplicate _start/_init/_fini/
+// __dso_handle symbols at link time).
+func (t *toolchainLinuxMuslArm64) Musl() bool {
+	return false
+}
+
+func (t *toolchainLinuxMuslArm64) Glibc() bool {
+	return true
+}
+
+
 func (t *toolchainLinuxMuslArm64) ToolchainLinkFlags(ctx ToolchainFlagsContext) cc_config.FlagsWithDeps {
-	linuxMusl := cc_config.FlagsWithDeps{
-		Flags: "${config.LinuxMuslToolchainLinkFlags}",
+	// glibc host rust on an aarch64 Linux host links against the host system
+	// glibc/gcc: target arch == host arch == aarch64, so clang++'s default
+	// toolchain resolution finds the distro's crtbeginS.o/crtendS.o, libgcc_s
+	// and glibc. The base toolchainLinkFlagsArrayArm64-LinuxLdflags carries
+	// --gcc-toolchain=<x86_64 host gcc> (this tree is x86_64-host oriented),
+	// which cannot supply aarch64 crt objects - that made ld.lld fail with
+	// "cannot open crtbeginS.o". So drop LinuxLdflags/LinuxArm64Ldflags and the
+	// x86 gcc -L search dirs from ToolchainRustFlags below.
+	//
+	// Keep the shared safety linker flags and add the glibc library set
+	// (-lc -lrt -ldl -lpthread -lm -lgcc_s). LinuxHostGlobalLinkFlags supplies
+	// the same set but only for Os()==Linux builds, not for this LinuxMusl
+	// variant. rustc itself emits -nodefaultlibs (via -Z link-native-libraries=no),
+	// so the explicit set is required.
+	return cc_config.FlagsWithDeps{
+		Flags: "-Wl,-z,noexecstack -Wl,-z,relro -Wl,-z,now -Wl,--no-undefined-version " +
+			"-Wl,--compress-debug-sections=zstd -Wl,--build-id=md5 " +
+			"${config.LinuxToolchainLinkFlags} ${config.LinuxToolchainArm64LinkFlags} " +
+			"-lc -lrt -ldl -lpthread -lm -lgcc_s",
 	}
-	return t.toolchainLinuxArm64.ToolchainLinkFlags(ctx).Append(linuxMusl)
 }
 
 func (t *toolchainLinuxMuslArm64) ToolchainRustFlags(ctx ToolchainFlagsContext) cc_config.FlagsWithDeps {
-	return t.toolchainLinuxArm64.ToolchainRustFlags(ctx).AppendNoDeps("${config.LinuxMuslToolchainRustFlags}")
+	// Do NOT add the x86_64 host-gcc -L search dirs (LinuxToolchainRustFlags):
+	// libc/gcc for the aarch64 host resolve from the host system instead.
+	return cc_config.FlagsWithDeps{}
 }
 
 func linuxMuslArm64ToolchainFactory(arch android.Arch) Toolchain {

@@ -15,6 +15,7 @@
 package rust
 
 import (
+	"android/soong/android"
 	"android/soong/rust/config"
 )
 
@@ -44,6 +45,16 @@ func (c *clippy) flags(ctx ModuleContext, flags Flags, deps PathDeps) (Flags, Pa
 	}
 
 	envDisable := ctx.Config().IsEnvTrue("SOONG_DISABLE_CLIPPY")
+
+	// arm64 宿主（BuildOS==LinuxMusl）的预置 rust 工具链
+	// prebuilts/rust-toolchain/linux-musl-arm64（linux-arm64 为其符号链接）只带
+	// rustc/rustdoc，没有 clippy-driver；linux-musl-x86 的 clippy-driver 是 x86
+	// 二进制，无法在 arm64 机器执行。clippy 仅是 lint，与 system.img 产物无关。
+	// 若不在分析期禁用 clippy，ninja 会生成 <crate>.clippy 校验目标，调度时因
+	// "clippy-driver missing and no known rule to make it" 直接失败
+	// （实例：build/make/tools/aconfig/aconfig[linux_musl_arm64] aconfig.clippy）。
+	// 因此在 musl 宿主上无条件禁用 clippy；glibc(x86_64) 宿主不受影响（clippy 照常）。
+	envDisable = envDisable || ctx.Config().BuildOS == android.LinuxMusl
 
 	flags.Clippy = dirEnabled && !envDisable
 	flags.ClippyFlags = append(flags.ClippyFlags, lints)
